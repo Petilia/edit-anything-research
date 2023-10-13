@@ -1,0 +1,29 @@
+name: "hf_inpaint"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "image"
+    data_type: TYPE_STRING
+    dims: [-1 ]
+  },
+  {
+    name: "mask"
+    data_type: TYPE_STRING
+    dims: [-1 ]
+  },
+  {
+    name: "prompt"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+    
+  }
+]
+output [
+  {
+    name: "generated_image"
+    data_type: TYPE_STRING	
+    dims: [ -1 ]
+  }
+]
