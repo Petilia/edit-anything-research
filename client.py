@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import tritonclient.http as httpclient
-from mobile_sam.utils.transforms import ResizeLongestSide
+from transforms import ResizeLongestSide
 from copy import copy
 
 
@@ -17,11 +17,13 @@ def draw_mask(img, mask, color=(0,255,0)):
     # the object will be tinted toward `color`
     return cv2.addWeighted(img, 0.8, masked_img, 0.2,0)
 
-def get_inputs(image, point):
-    inputs = {}
+def get_inputs(image_file, point):
     transform = ResizeLongestSide(1024)
 
-    image_transformed = transform.apply_image(image)
+    # image_transformed = transform.apply_image(image)
+    image = cv2.imread(image_file)
+    image_bytes = open(image_file, "rb").read()
+    image_transformed = np.array(list(image_bytes), dtype=np.uint8)
 
     input_point = np.array([point])
     input_label = np.array([1])
@@ -34,7 +36,7 @@ def get_inputs(image, point):
     onnx_has_mask_input = np.zeros(1, dtype=np.float32)
 
     return {
-        "input_image": image_transformed.astype(np.float32),
+        "input_image": image_transformed,
         "point_coords": onnx_coord,
         "point_labels": onnx_label,
         "mask_input": onnx_mask_input,
@@ -47,9 +49,10 @@ DEBUG = True
 if __name__ == "__main__":
     client = httpclient.InferenceServerClient(url="localhost:8000")
 
-    image = cv2.imread("./picture2.jpg")
+    image_name = "./picture2.jpg"
+    image = cv2.imread(image_name)
     point = [256, 256]
-    inputs = get_inputs(image, point)
+    inputs = get_inputs(image_name, point)
 
     if DEBUG:
         image_with_point = cv2.circle(copy(image), np.array(point), radius=5, color=(0, 255, 0), thickness=2)
@@ -61,12 +64,12 @@ if __name__ == "__main__":
 
     # Create encoder input image
     encoder_input = httpclient.InferInput(
-        "input_image", inputs["input_image"].shape, datatype="FP32"
+        "input_image", inputs["input_image"].shape, datatype="UINT8"
     )
     encoder_input.set_data_from_numpy(inputs["input_image"], binary_data=True)
     # Get encoder output embeddings
     encoder_response = client.infer(
-        model_name="sam_encoder", inputs=[encoder_input]
+        model_name="encoder_ensemble", inputs=[encoder_input]
     )
     image_embeddings = encoder_response.as_numpy("image_embeddings")
     if DEBUG:
