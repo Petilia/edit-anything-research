@@ -2,7 +2,7 @@
 
 В ./sam лежат ноутбуки экспериментов с моделями SAM
 
-# Diffusion Inpainting 
+# Diffusion Inpainting
 
 Colab для inpainting с помощью классической SD 1.5:
 https://colab.research.google.com/drive/1WBN67Lre6zxQDZtntoPzEjeEC-ruaVxY?usp=sharing
@@ -13,4 +13,8 @@ https://colab.research.google.com/drive/1Wmi6Uc6TcgDGeJLv4J-UfcjtSPoZOofr?usp=sh
 Colab с inpainting для Consistence Models (эта модель не имеет релевантных весов, и работает плохо на большинстве изображений):
 https://colab.research.google.com/drive/1rh40K2AIeaLcR64XCZO-eAA8c2gBKlN_?usp=sharing
 
+# SAM Triton Inference
 
+Encoder и Decoder модели в model_repository, пример клиента в client.py
+
+Веса на диске в ./mobile_sam
