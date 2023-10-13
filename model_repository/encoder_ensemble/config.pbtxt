@@ -1,0 +1,45 @@
+name: "encoder_ensemble"
+platform: "ensemble"
+max_batch_size: 0
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_UINT8
+    dims: [ -1 ]
+  }
+]
+output [
+  {
+    name: "image_embeddings"
+    data_type: TYPE_FP32
+    dims: [ 1, 256, 64, 64 ]
+  }
+]
+ensemble_scheduling {
+  step [
+    {
+      model_name: "dali"
+      model_version: -1
+      input_map {
+        key: "DALI_INPUT_0"
+        value: "input_image"
+      }
+      output_map {
+        key: "DALI_OUTPUT_0"
+        value: "preprocessed_image"
+      }
+    },
+    {
+      model_name: "sam_encoder"
+      model_version: -1
+      input_map {
+        key: "input_image"
+        value: "preprocessed_image"
+      }
+      output_map {
+        key: "image_embeddings"
+        value: "image_embeddings"
+      }
+    }
+  ]
+}
