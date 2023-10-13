@@ -47,7 +47,7 @@ def draw_mask(img, mask, color=(0,255,0)):
 
 def resize_with_pad(image: np.array,
                     new_shape: tuple[int, int],
-                    padding_color: tuple[int] = (255, 255, 255)) -> np.array:
+                    padding_color: tuple[int] = (0, 0, 0)) -> np.array:
     """Maintains aspect ratio and resizes with padding.
     Params:
         image: Image to be resized.
@@ -109,33 +109,74 @@ def pad_upper_left(img, x=1024):
     return base
 
 
+def prep_image(image):
+    pixel_mean = np.array([123.675, 116.28, 103.53]).reshape(1, 1, -1)
+    pixel_std = np.array([[58.395, 57.12, 57.375]]).reshape(1, 1, -1)
+
+    image = (image - pixel_mean) / pixel_std
+
+    return image.transpose(2,0,1)[None,:,:,:].astype(np.float32)
+
+
+def get_inputs_like_in_notebook():
+    from mobile_sam import sam_model_registry, SamPredictor
+    inputs = {}
+
+    checkpoint = "D:/Repositories/tinkoff-diffusions/samexporter/original_models/mobile_sam.pt"
+    model_type = "vit_t"
+    sam = sam_model_registry[model_type](checkpoint=checkpoint)
+    predictor = SamPredictor(sam)
+
+    image = cv2.imread("./picture2.jpg")
+    image_transformed = predictor.transform.apply_image(image)
+
+    input_point = np.array([[250, 375]])
+    input_label = np.array([1])
+
+    onnx_coord = np.concatenate([input_point, np.array([[0.0, 0.0]])], axis=0)[None, :, :]
+    onnx_label = np.concatenate([input_label, np.array([-1])], axis=0)[None, :].astype(np.float32)
+
+    onnx_coord = predictor.transform.apply_coords(onnx_coord, image.shape[:2]).astype(np.float32)
+    onnx_mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
+    onnx_has_mask_input = np.zeros(1, dtype=np.float32)
+
+    return {
+        "input_image": image_transformed.astype(np.float32),
+        "point_coords": onnx_coord,
+        "point_labels": onnx_label,
+        "mask_input": onnx_mask_input,
+        "has_mask_input": onnx_has_mask_input,
+        "orig_im_size": np.array(image.shape[:2], dtype=np.float32)
+    }
 
 if __name__ == "__main__":
     # Setting up client
     client = httpclient.InferenceServerClient(url="localhost:8000")
 
-    # Read image and create input object
-    raw_image = cv2.imread("./picture2.jpg")
-    orig_im_size = np.array(raw_image.shape[:2])
-    # preprocessed_image = raw_image
-    # preprocessed_image = resize_with_pad(raw_image, new_shape=(1024,1024))
-    transform = ResizeLongestSide(target_length=1024)
-    preprocessed_image = transform.apply_image(raw_image)
+    # # Read image and create input object
+    # raw_image = cv2.imread("./picture2.jpg")
+    # orig_im_size = np.array(raw_image.shape[:2])
+    # # preprocessed_image = raw_image
+    # # preprocessed_image = resize_with_pad(raw_image, new_shape=(1024,1024))
+    # transform = ResizeLongestSide(target_length=1024)
+    # preprocessed_image = transform.apply_image(raw_image)
 
-    raw_point = np.array([450, 375])
-    # preprocessed_point = raw_point
-    preprocessed_point = transform.apply_coords(raw_point, orig_im_size)
-    image_with_point = cv2.circle(preprocessed_image, preprocessed_point.astype(int), radius=5, color=(0, 255, 0), thickness=2)
-    cv2.imwrite("image_with_point.png", image_with_point)
+    # preprocessed_point = transform.apply_coords(raw_point, orig_im_size)
+    # image_with_point = cv2.circle(preprocessed_image, preprocessed_point.astype(int), radius=5, color=(0, 255, 0), thickness=2)
+    # cv2.imwrite("image_with_point.png", image_with_point)
 
-    preprocessed_image = preprocessed_image.astype(np.float32)
+    # preprocessed_image = preprocessed_image.astype(np.float32)
 
-    print("image shape", preprocessed_image.shape)
+
+    inputs = get_inputs_like_in_notebook()
+
+    # print("image shape", preprocessed_image.shape)
+    print("image shape", inputs["input_image"].shape)
 
     detection_input = httpclient.InferInput(
-        "input_image", preprocessed_image.shape, datatype="FP32"
+        "input_image", inputs["input_image"].shape, datatype="FP32"
     )
-    detection_input.set_data_from_numpy(preprocessed_image, binary_data=True)
+    detection_input.set_data_from_numpy(inputs["input_image"], binary_data=True)
 
     # Query the server
     decoder_response = client.infer(
@@ -145,7 +186,7 @@ if __name__ == "__main__":
     # Process responses from detection model
     embeddings = decoder_response.as_numpy("image_embeddings")
     print("embeddings shape", embeddings.shape)
-    np.save("embeddings.npy", embeddings)
+    # np.save("embeddings.npy", embeddings)
 
 
     embeddings_input = httpclient.InferInput(
@@ -153,37 +194,37 @@ if __name__ == "__main__":
     )
     embeddings_input.set_data_from_numpy(embeddings, binary_data=True)
 
-    point_coords = np.array([[preprocessed_point, [0.0, 0.0]]], dtype=np.float32)
+    # point_coords = np.array([[preprocessed_point, [0.0, 0.0]]], dtype=np.float32)
     point_coords_input = httpclient.InferInput(
-        "point_coords", point_coords.shape, datatype="FP32"
+        "point_coords", inputs["point_coords"].shape, datatype="FP32"
     )
-    point_coords_input.set_data_from_numpy(point_coords, binary_data=True)
+    point_coords_input.set_data_from_numpy(inputs["point_coords"], binary_data=True)
 
-    point_labels = np.array([[1, -1]], dtype=np.float32)
+    # point_labels = np.array([[1, -1]], dtype=np.float32)
     point_labels_input = httpclient.InferInput(
-        "point_labels", point_labels.shape, datatype="FP32"
+        "point_labels", inputs["point_labels"].shape, datatype="FP32"
     )
-    point_labels_input.set_data_from_numpy(point_labels, binary_data=True)
+    point_labels_input.set_data_from_numpy(inputs["point_labels"], binary_data=True)
 
     # mask_input = np.array([0], dtype=np.float32)
-    mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
+    # mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
     mask_input_input = httpclient.InferInput(
-        "mask_input", mask_input.shape, datatype="FP32"
+        "mask_input", inputs["mask_input"].shape, datatype="FP32"
     )
-    mask_input_input.set_data_from_numpy(mask_input, binary_data=True)
+    mask_input_input.set_data_from_numpy(inputs["mask_input"], binary_data=True)
 
-    has_mask_input = np.array([0], dtype=np.float32)
+    # has_mask_input = np.array([0], dtype=np.float32)
     has_mask_input_input = httpclient.InferInput(
-        "has_mask_input", has_mask_input.shape, datatype="FP32"
+        "has_mask_input", inputs["has_mask_input"].shape, datatype="FP32"
     )
-    has_mask_input_input.set_data_from_numpy(has_mask_input, binary_data=True)
+    has_mask_input_input.set_data_from_numpy(inputs["has_mask_input"], binary_data=True)
 
     # orig_im_size = np.array(preprocessed_image.shape[:2], dtype=np.float32)
-    orig_im_size = orig_im_size.astype(np.float32)
+    # orig_im_size = orig_im_size.astype(np.float32)
     orig_im_size_input = httpclient.InferInput(
-        "orig_im_size", orig_im_size.shape, datatype="FP32"
+        "orig_im_size", inputs["orig_im_size"].shape, datatype="FP32"
     )
-    orig_im_size_input.set_data_from_numpy(orig_im_size, binary_data=True)
+    orig_im_size_input.set_data_from_numpy(inputs["orig_im_size"], binary_data=True)
 
 
     # Query the server
@@ -192,11 +233,12 @@ if __name__ == "__main__":
     )
 
     # Process responses from detection model
-    masks = decoder_response.as_numpy("low_res_masks")
+    masks = decoder_response.as_numpy("masks")
     print("masks shape", masks.shape)
 
-    mask = cv2.resize(masks[0,0,:,:], dsize=preprocessed_image.shape[:2][::-1], interpolation=cv2.INTER_CUBIC)
-    mask = (mask > 0)*255
+    # mask = cv2.resize(masks, dsize=preprocessed_image.shape[:2][::-1], interpolation=cv2.INTER_CUBIC)
+    # mask = (mask > 0)*255
+    masks = (masks[0,0,:,:] > 0)*255
 
-    cv2.imwrite("mask.png", mask)
-    cv2.imwrite("image_with_mask.png", draw_mask(preprocessed_image, mask, color=(0, 255, 0)))
+    cv2.imwrite("mask.png", masks)
+    cv2.imwrite("image_with_mask.png", draw_mask(cv2.imread("./picture2.jpg"), masks, color=(0, 255, 0)))
