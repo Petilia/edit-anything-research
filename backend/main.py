@@ -84,12 +84,12 @@ def decode_image(img):
     return image
 
 
-def inpaint(prompt, img_path, inpainted_img_path):
+def inpaint(prompt, img_path, mask_path, inpainted_img_path):
     model_name = "hf_inpaint"
     image = Image.open(img_path)
     init_width, init_height = image.size
 
-    mask = Image.open(img_path)
+    mask = Image.open(mask_path)
     #mask = ImageOps.invert(mask)
     image = encode_image(image).decode("utf8")
     mask = encode_image(mask).decode("utf8")
@@ -109,6 +109,7 @@ def inpaint(prompt, img_path, inpainted_img_path):
     input_tensors[1].set_data_from_numpy(mask.reshape([1]))
     input_tensors[2].set_data_from_numpy(prompt.reshape([1]))
 
+    print(input_tensors)
     # Set outputs
     outputs = [httpclient.InferRequestedOutput("generated_image")]
 
@@ -133,54 +134,43 @@ def inpaint(prompt, img_path, inpainted_img_path):
     img.save(inpainted_img_path)
 
 
+def get_inputs(image_file, point):
+    transform = ResizeLongestSide(1024)
+    image = cv2.imread(image_file)
+    image_bytes = open(image_file, 'rb').read()
+    image_transformed = np.array(list(image_bytes), dtype=np.uint8)
+
+    input_point = np.array([point])
+    input_label = np.array([1])
+
+    onnx_coord = np.concatenate(
+        [input_point, np.array([[0.0, 0.0]])], axis=0)[None, :, :]
+    onnx_label = np.concatenate(
+        [input_label, np.array([-1])], axis=0)[None, :].astype(np.float32)
+
+    onnx_coord = transform.apply_coords(
+        onnx_coord, image.shape[:2]).astype(np.float32)
+    onnx_mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
+    onnx_has_mask_input = np.zeros(1, dtype=np.float32)
+    return {
+        "input_image": image_transformed,
+        "point_coords": onnx_coord,
+        "point_labels": onnx_label,
+        "mask_input": onnx_mask_input,
+        "has_mask_input": onnx_has_mask_input,
+        "orig_im_size": np.array(image.shape[:2], dtype=np.float32)
+    }
+
+
 @ app.post("/upload_points/{user_id}")
 async def upload_points(request: Request, user_id: str = None):
     try:
         inp_json = await request.json()
 
-        # fix for multiple points!!!!
-        point = inp_json['point'][0]
-
-        transform = ResizeLongestSide(1024)
-
-        # image_transformed = transform.apply_image(image)
-
+        point = inp_json['point'][-1]
         image_file = f'./static/images/{user_id}.jpeg'
-        print(image_file)
-        image = cv2.imread(image_file)
-        image_bytes = open(image_file, 'rb').read()
-        #image_bytes = open(image_file, "rb").read()
-        image_transformed = np.array(list(image_bytes), dtype=np.uint8)
 
-        input_point = np.array([point])
-        input_label = np.array([1])
-
-        onnx_coord = np.concatenate(
-            [input_point, np.array([[0.0, 0.0]])], axis=0)[None, :, :]
-        onnx_label = np.concatenate(
-            [input_label, np.array([-1])], axis=0)[None, :].astype(np.float32)
-
-        onnx_coord = transform.apply_coords(
-            onnx_coord, image.shape[:2]).astype(np.float32)
-        onnx_mask_input = np.zeros((1, 1, 256, 256), dtype=np.float32)
-        onnx_has_mask_input = np.zeros(1, dtype=np.float32)
-
-        inputs = {
-            "input_image": image_transformed,
-            "point_coords": onnx_coord,
-            "point_labels": onnx_label,
-            "mask_input": onnx_mask_input,
-            "has_mask_input": onnx_has_mask_input,
-            "orig_im_size": np.array(image.shape[:2], dtype=np.float32)
-        }
-
-        if DEBUG:
-            image_with_point = cv2.circle(copy(image), np.array(
-                point), radius=5, color=(0, 255, 0), thickness=2)
-            cv2.imwrite("image_with_point.png", image_with_point)
-        if DEBUG:
-            print("original image shape", image.shape)
-            print("image shape", inputs["input_image"].shape)
+        inputs = get_inputs(image_file, point)
 
         # Create encoder input image
         encoder_input = httpclient.InferInput(
@@ -193,8 +183,6 @@ async def upload_points(request: Request, user_id: str = None):
             model_name="encoder_ensemble", inputs=[encoder_input]
         )
         image_embeddings = encoder_response.as_numpy("image_embeddings")
-        if DEBUG:
-            print("embeddings shape", image_embeddings.shape)
 
         # Create encoder inputs
         # image_embeddings
@@ -239,10 +227,13 @@ async def upload_points(request: Request, user_id: str = None):
         )
 
         masks = decoder_response.as_numpy("masks")
-
         masks = (masks[0, 0, :, :] > 0) * 255
+        # dikate masks
+        print(masks.dtype)
+        masks = cv2.dilate(masks.astype(np.uint8),
+                           np.ones((5, 5), 'uint8'), iterations=5)
 
-        masked_img_path = f"./static/masks/masked_{str(user_id)}.png"
+        #masked_img_path = f"./static/masks/masked_{str(user_id)}.png"
         mask_pth = f"./static/masks/{str(user_id)}.png"
 
         #save_image_task = asyncio.create_task(save_image_async(masked_img_path, draw_mask(image, masks, color=(0, 255, 0))))
@@ -252,12 +243,12 @@ async def upload_points(request: Request, user_id: str = None):
         # await save_iamge_task_1
 
         cv2.imwrite(mask_pth, masks)
-        cv2.imwrite(masked_img_path, draw_mask(
-            image, masks, color=(0, 255, 0)))
-        return FileResponse(mask_pth, media_type="image/png")
-
+        points_upload_response = FileResponse(mask_pth, media_type="image/png")
         # os.remove(masked_img_path)
 
+        return points_upload_response
+
+        #
     except Exception as e:
         print(e)
         return HTTPException(detail=str(e), status_code=500)
@@ -269,11 +260,16 @@ async def get_image(user_id: str=None, prompt: str = ''):
 
         img_path = f'./static/images/{user_id}.jpeg'
         inpainted_img_path = f'./static/inpainted_images/{user_id}.jpeg'
-        inpaint(prompt, img_path, inpainted_img_path)
+        mask_path = f"./static/masks/{str(user_id)}.png"
+        inpaint(prompt, img_path, mask_path, inpainted_img_path)
 
-        return FileResponse(inpainted_img_path, media_type="image/jpeg")
+        get_img = FileResponse(inpainted_img_path, media_type="image/jpeg")
 
-        # os.remove(img_path)
+       # os.remove(img_path)
+        # os.remove(inpainted_img_path)
+        # os.remove(mask_path)
+
+        return get_img
 
     except Exception as e:
         return HTTPException(detail=str(e), status_code=500)
@@ -281,7 +277,7 @@ async def get_image(user_id: str=None, prompt: str = ''):
 
 @ app.on_event("shutdown")
 async def delete_uploaded_files():
-    for folder_path in ['./static/images/', './static/masks/', './static/inpainted_images/']
+    for folder_path in ['./static/images/', './static/masks/', './static/inpainted_images/']:
         for filename in os.listdir(folder_path):
             file_path = os.path.join(folder_path, filename)
             try:
