@@ -1,20 +1,18 @@
-# SOME SAM Research
+# Asynchronous python backend server 
 
-В ./sam лежат ноутбуки экспериментов с моделями SAM
 
-# Diffusion Inpainting
+Все модели (MobileSAM, Stable Diffusion Inpainting) лежат в NVIDIA Triton Inference Server
 
-Colab для inpainting с помощью классической SD 1.5:
-https://colab.research.google.com/drive/1WBN67Lre6zxQDZtntoPzEjeEC-ruaVxY?usp=sharing
+##### Роуты:
 
-Colab с конвертацией этой модели в onnx:
-https://colab.research.google.com/drive/1Wmi6Uc6TcgDGeJLv4J-UfcjtSPoZOofr?usp=sharing
+`/upload_img/` - грузим изображение, присваиваем uuid пользователю
+`/upload_points/` - получаем точки от пользователя, передаем в MobileSAM, выдаем маску, сохраняем
+`/get_image/` - достаем изображения, маски и подаем в Stable Diffusion Inpainting
 
-Colab с inpainting для Consistence Models (эта модель не имеет релевантных весов, и работает плохо на большинстве изображений):
-https://colab.research.google.com/drive/1rh40K2AIeaLcR64XCZO-eAA8c2gBKlN_?usp=sharing
+##### Запуск:
+```
+uvicorn main:app --reload --port=8012
 
-# SAM Triton Inference
+```
 
-Encoder и Decoder модели в model_repository, пример клиента в client.py
 
-Веса на диске в ./mobile_sam
