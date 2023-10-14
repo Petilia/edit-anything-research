@@ -14,4 +14,5 @@
 uvicorn main:app --reload --port=8012
 ```
 
+![73366188617](https://github.com/Petilia/edit-anything-research/assets/79598074/2765b383-6718-4d5c-b1d7-87014d16bbd3)
 
