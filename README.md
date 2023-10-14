@@ -12,7 +12,6 @@
 ##### Запуск:
 ```
 uvicorn main:app --reload --port=8012
-
 ```
 
 
