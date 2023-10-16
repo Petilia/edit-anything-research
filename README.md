@@ -21,3 +21,4 @@ Encoder и Decoder модели в model_repository, пример клиента
 
 # Web UI 
 ![](https://github.com/Petilia/edit-anything-research/blob/master/images/cat.gif)
+Интерфейс позволяет работать с изображениями, отправлять данные на сервер и принимать их.
