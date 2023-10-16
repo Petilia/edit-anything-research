@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 from starlette.requests import Request
@@ -170,6 +171,7 @@ async def upload_points(request: Request, user_id: str = None):
         point = inp_json['point'][-1]
         image_file = f'./static/images/{user_id}.jpeg'
 
+        #image = cv2.imread(image_file)
         inputs = get_inputs(image_file, point)
 
         # Create encoder input image
@@ -233,7 +235,7 @@ async def upload_points(request: Request, user_id: str = None):
         masks = cv2.dilate(masks.astype(np.uint8),
                            np.ones((5, 5), 'uint8'), iterations=5)
 
-        #masked_img_path = f"./static/masks/masked_{str(user_id)}.png"
+        masked_img_path = f"./static/masks/masked_{str(user_id)}.png"
         mask_pth = f"./static/masks/{str(user_id)}.png"
 
         #save_image_task = asyncio.create_task(save_image_async(masked_img_path, draw_mask(image, masks, color=(0, 255, 0))))
@@ -243,8 +245,11 @@ async def upload_points(request: Request, user_id: str = None):
         # await save_iamge_task_1
 
         cv2.imwrite(mask_pth, masks)
+        cv2.imwrite(masked_img_path, draw_mask(
+            image, masks, color=(0, 255, 0)))
+
         points_upload_response = FileResponse(mask_pth, media_type="image/png")
-        # os.remove(masked_img_path)
+        os.remove(masked_img_path)
 
         return points_upload_response
 
@@ -265,9 +270,9 @@ async def get_image(user_id: str=None, prompt: str = ''):
 
         get_img = FileResponse(inpainted_img_path, media_type="image/jpeg")
 
-       # os.remove(img_path)
-        # os.remove(inpainted_img_path)
-        # os.remove(mask_path)
+        os.remove(img_path)
+        os.remove(inpainted_img_path)
+        os.remove(mask_path)
 
         return get_img
 
