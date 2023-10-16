@@ -24,6 +24,17 @@ Encoder и Decoder модели в model_repository, пример клиента
 
 Интерфейс позволяет работать с изображениями, отправлять данные на сервер и принимать их.
 
+Пример(prompt - picture):
+
+Исходное изображение
+
+![](https://github.com/Petilia/edit-anything-research/blob/master/images/room_1.jpg)
+
+Изменённое изображение
+
+![](https://github.com/Petilia/edit-anything-research/blob/master/images/room_2.jpg)
+
+
 # Run
 
 ```bash!
