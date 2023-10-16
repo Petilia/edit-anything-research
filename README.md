@@ -27,4 +27,12 @@ Encoder и Decoder модели в model_repository, пример клиента
 ```bash!
 python app.py
 ```
+# Contributing
 
+Need a lot of help in making the UI better.
+When creating an issue, please include as much detail as possible, including steps to reproduce the issue if applicable.
+Create a pull request (PR) to the original repository. Please use black formatter when making code changes.
+
+# Credits
+
+- MobileSAM - https://github.com/ChaoningZhang/MobileSAM
